@@ -2,6 +2,30 @@
 
 本地 Web 工具：递归扫描文件夹内 `.cs` 文件，分析**该文件夹内类型之间**的引用关系，按调用层级展示，点击类可展开向下调用树。
 
+## 界面预览
+
+以下截图为分析内置 `samples/` 示例后的界面。
+
+### 分层视图
+
+按调用层级展示类型卡片，支持搜索与点击选中。
+
+![分层视图](docs/screenshots/02-layers-view.png)
+
+### 节点图
+
+可切换为引用关系节点图；滚轮缩放、右键拖动画布。
+
+![节点图全览](docs/screenshots/03-graph-view.png)
+
+![节点图放大](docs/screenshots/06-graph-view-zoomed.png)
+
+### 类概要
+
+点击类卡片后，右侧展示成员大纲、输入/输出端口、调用树与引用方。
+
+![类概要](docs/screenshots/04-class-outline.png)
+
 ## 环境
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)（或兼容的运行时）
