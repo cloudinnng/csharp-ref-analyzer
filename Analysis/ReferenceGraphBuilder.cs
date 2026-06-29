@@ -191,6 +191,7 @@ public static class ReferenceGraphBuilder
                         ? string.Empty
                         : symbol.ContainingNamespace.ToDisplayString(),
                     Kind = MapTypeKind(symbol, node),
+                    IsAbstract = symbol.IsAbstract,
                     FilePath = ToRelativePath(rootPath, tree.FilePath),
                     Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1
                 };
@@ -239,6 +240,8 @@ public static class ReferenceGraphBuilder
                 EnumDeclarationSyntax => Models.TypeKind.Enum,
                 _ => Models.TypeKind.Class
             },
+            IsAbstract = node is ClassDeclarationSyntax classDecl
+                && classDecl.Modifiers.Any(SyntaxKind.AbstractKeyword),
             FilePath = ToRelativePath(rootPath, tree.FilePath),
             Line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1
         };

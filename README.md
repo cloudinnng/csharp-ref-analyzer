@@ -84,8 +84,15 @@ dotnet run -- --self-check samples
 | `EdgeNestedNs.cs` | 嵌套命名空间 + 完全限定名 |
 | `Service.cs` | 接口实现 + 跨类调用 |
 | `PeerOne.cs` / `PeerTwo.cs` | 循环依赖检测 |
+| `EdgeInheritance.cs` | abstract / sealed / 多层继承 / 多接口实现 |
+| `EdgeModernSyntax.cs` | `??`、switch 表达式、本地函数、is 模式、collection 表达式 |
+| `EdgeNestedTypes.cs` | 嵌套 class 独立注册与引用 |
+| `EdgeNamespaces.cs` | file-scoped namespace + `global::` |
+| `EdgeStructRecord.cs` | record 主构造、`with`、struct 实例方法 |
+| `EdgeGenerics.cs` | 泛型方法参数；`List<T>` 不展开（负例） |
+| `OutlineCases.cs` / `OutlineAdvanced.cs` | 成员大纲与 IO 端口（含 static 工厂） |
 
-自检还验证 `SourceSnippetReader` 读取与路径穿越拒绝。
+自检还验证 `SourceSnippetReader` / `SourceClassReader` / `ClassOutlineReader` 与路径穿越拒绝。
 
 ## 功能
 

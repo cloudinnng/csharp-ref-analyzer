@@ -335,9 +335,9 @@ public static class Program
         AnalysisResultDto result = AnalyzeFolder(fullPath);
         bool ok = true;
 
-        ok &= Assert(result.FilesScanned >= 15, $"扫描文件 >= 15 (实际 {result.FilesScanned})");
-        ok &= Assert(result.Classes.Count >= 20, $"类型数量 >= 20 (实际 {result.Classes.Count})");
-        ok &= Assert(result.References.Count >= 15, $"引用边 >= 15 (实际 {result.References.Count})");
+        ok &= Assert(result.FilesScanned >= 22, $"扫描文件 >= 22 (实际 {result.FilesScanned})");
+        ok &= Assert(result.Classes.Count >= 30, $"类型数量 >= 30 (实际 {result.Classes.Count})");
+        ok &= Assert(result.References.Count >= 50, $"引用边 >= 50 (实际 {result.References.Count})");
         ok &= Assert(result.Layers.Count >= 3, $"A→B→C 链至少 3 层 (实际 {result.Layers.Count})");
         ok &= Assert(result.Cycles.Count >= 1, $"环 >= 1 (实际 {result.Cycles.Count})");
 
@@ -352,9 +352,16 @@ public static class Program
         ok &= RunFilterTests(result);
         ok &= RunNestedNamespaceTests(result);
         ok &= RunThisReceiverTests(result);
+        ok &= RunInheritanceTests(result);
+        ok &= RunModernSyntaxTests(result);
+        ok &= RunNestedTypeTests(result);
+        ok &= RunScopedNamespaceTests(result);
+        ok &= RunStructRecordTests(result);
+        ok &= RunGenericsTests(result);
         ok &= RunSnippetTests(fullPath);
         ok &= RunClassSourceTests(fullPath);
         ok &= RunClassOutlineTests(fullPath);
+        ok &= RunOutlineAdvancedTests(fullPath);
         ok &= PathHistoryStore.RunSelfCheck();
 
         Console.WriteLine(ok ? "[SelfCheck] 通过" : "[SelfCheck] 失败");
@@ -554,6 +561,110 @@ public static class Program
         return ok;
     }
 
+    /// <summary>abstract / sealed / 多层继承 / 多接口</summary>
+    private static bool RunInheritanceTests(AnalysisResultDto result)
+    {
+        bool ok = true;
+        ok &= Assert(FindClass(result, "BaseAnimalHost")?.IsAbstract == true, "BaseAnimalHost 为 abstract");
+        ok &= Assert(HasEdge(result, "BaseAnimalHost", "Animal", ReferenceKind.Extends),
+            "BaseAnimalHost 继承 Animal");
+        ok &= Assert(HasEdge(result, "ConcreteHost", "BaseAnimalHost", ReferenceKind.Extends),
+            "ConcreteHost 继承 BaseAnimalHost");
+        ok &= Assert(HasEdge(result, "ConcreteHost", "AppRunner", ReferenceKind.Calls),
+            "ConcreteHost override 内 new AppRunner");
+        ok &= Assert(HasEdge(result, "DualImpl", "IWorker", ReferenceKind.Extends),
+            "DualImpl 实现 IWorker");
+        ok &= Assert(HasEdge(result, "DualImpl", "ITaskRunner", ReferenceKind.Extends),
+            "DualImpl 实现 ITaskRunner");
+        ok &= Assert(HasEdge(result, "DualImpl", "Human", ReferenceKind.Calls),
+            "DualImpl.Work 内 new Human");
+        return ok;
+    }
+
+    /// <summary>?? / switch 表达式 / 本地函数 / collection 表达式</summary>
+    private static bool RunModernSyntaxTests(AnalysisResultDto result)
+    {
+        bool ok = true;
+        ok &= Assert(HasEdge(result, "ModernSyntaxUser", "Human", ReferenceKind.Uses),
+            "ModernSyntaxUser 返回类型/参数 Human");
+        ok &= Assert(HasEdge(result, "ModernSyntaxUser", "Human", ReferenceKind.Calls),
+            "ModernSyntaxUser ?? new Human / collection 表达式");
+        ok &= Assert(CountSitesBetween(result, "ModernSyntaxUser", "Human") >= 3,
+            $"ModernSyntaxUser->Human 多处引用 (实际 {CountSitesBetween(result, "ModernSyntaxUser", "Human")})");
+        ok &= Assert(HasEdge(result, "ModernSyntaxUser", "AppRunner", ReferenceKind.Calls),
+            "ModernSyntaxUser switch / SpawnDefault 调用 AppRunner");
+        ok &= Assert(HasEdge(result, "ModernSyntaxUser", "Animal", ReferenceKind.Calls),
+            "ModernSyntaxUser 本地函数 new Animal");
+        return ok;
+    }
+
+    /// <summary>嵌套类型独立注册与引用</summary>
+    private static bool RunNestedTypeTests(AnalysisResultDto result)
+    {
+        bool ok = true;
+        ok &= Assert(FindClass(result, "InnerRunner") is not null, "嵌套类 InnerRunner 已注册");
+        ok &= Assert(HasEdge(result, "InnerRunner", "AppRunner", ReferenceKind.Calls),
+            "InnerRunner.Go 内 new AppRunner");
+        ok &= Assert(HasEdge(result, "OuterHost", "InnerRunner", ReferenceKind.Uses),
+            "OuterHost 字段 _inner 类型 InnerRunner");
+        ok &= Assert(HasEdge(result, "OuterHost", "InnerRunner", ReferenceKind.Calls),
+            "OuterHost.Start 调用 _inner.Go()");
+        return ok;
+    }
+
+    /// <summary>file-scoped namespace + global:: 限定名</summary>
+    private static bool RunScopedNamespaceTests(AnalysisResultDto result)
+    {
+        bool ok = true;
+        ClassNodeDto? scopedUser = FindClass(result, "ScopedUser");
+        ok &= Assert(scopedUser is not null, "找到 ScopedUser (SampleApp.Scoped)");
+        ok &= Assert(scopedUser?.Namespace.Contains("Scoped", StringComparison.Ordinal) == true,
+            "ScopedUser 命名空间含 Scoped");
+        ok &= Assert(CountSitesBetween(result, "ScopedUser", "AppRunner") >= 3,
+            $"ScopedUser->AppRunner 字段+局部+调用 (实际 {CountSitesBetween(result, "ScopedUser", "AppRunner")})");
+        return ok;
+    }
+
+    /// <summary>record 主构造 / struct 方法 / with 表达式</summary>
+    private static bool RunStructRecordTests(AnalysisResultDto result)
+    {
+        bool ok = true;
+        ok &= Assert(FindClass(result, "TeamBundle")?.Kind == TypeKind.Record, "TeamBundle 为 Record");
+        ok &= Assert(HasEdge(result, "TeamFactory", "TeamBundle", ReferenceKind.Calls),
+            "TeamFactory new TeamBundle");
+        ok &= Assert(HasEdge(result, "TeamFactory", "Human", ReferenceKind.Uses),
+            "TeamFactory 参数 Human");
+        ok &= Assert(HasEdge(result, "TeamFactory", "AppRunner", ReferenceKind.Calls),
+            "TeamFactory 构造 TeamBundle 时 new AppRunner");
+        ok &= Assert(HasEdge(result, "LiveBox", "Animal", ReferenceKind.Uses),
+            "LiveBox 字段 Animal");
+        ok &= Assert(HasEdge(result, "LiveBox", "Animal", ReferenceKind.Calls),
+            "LiveBox.Ping 调用 Target.Live()");
+        return ok;
+    }
+
+    /// <summary>泛型方法参数 + List&lt;T&gt; 不展开负例</summary>
+    private static bool RunGenericsTests(AnalysisResultDto result)
+    {
+        bool ok = true;
+        ok &= Assert(HasEdge(result, "GenericProcessor", "Human", ReferenceKind.Uses),
+            "GenericProcessor.Process 参数 Human");
+        ok &= Assert(HasEdge(result, "GenericProcessor", "Human", ReferenceKind.Calls),
+            "GenericProcessor 内 new Human / subject.DoWork");
+        ok &= Assert(CountSitesBetween(result, "GenericProcessor", "Human") >= 2,
+            $"GenericProcessor->Human 至少 2 处 (实际 {CountSitesBetween(result, "GenericProcessor", "Human")})");
+        // ponytail: List<Human> 字段类型不展开 Human（与 TypeShapes 相同限制）
+        int usesOnly = result.References
+            .Where(r =>
+                r.FromId.Contains("GenericProcessor", StringComparison.Ordinal) &&
+                r.ToId.Contains("Human", StringComparison.Ordinal) &&
+                r.Kind == ReferenceKind.Uses)
+            .Sum(r => r.Sites.Count);
+        ok &= Assert(usesOnly == 1,
+            $"GenericProcessor Uses→Human 仅参数 1 处 (实际 {usesOnly})");
+        return ok;
+    }
+
     /// <summary>SourceSnippetReader 正常读取与路径穿越拒绝</summary>
     private static bool RunSnippetTests(string samplesRoot)
     {
@@ -582,7 +693,8 @@ public static class Program
 
         try
         {
-            SourceSnippetReader.ReadSnippet(samplesRoot, "..\\..\\Program.cs", 1);
+            // ponytail: 使用跨平台 ../ 路径，避免 macOS 上 ..\\..\\ 被当作字面目录名
+            SourceSnippetReader.ReadSnippet(samplesRoot, "../../Program.cs", 1);
             ok &= Assert(false, "路径穿越应被拒绝");
         }
         catch (UnauthorizedAccessException)
@@ -682,6 +794,35 @@ public static class Program
         catch (Exception ex)
         {
             ok &= Assert(false, $"ClassOutlineReader 失败: {ex.Message}");
+        }
+
+        return ok;
+    }
+
+    /// <summary>OutlineAdvanced：索引器、static 工厂、init/set 属性</summary>
+    private static bool RunOutlineAdvancedTests(string samplesRoot)
+    {
+        bool ok = true;
+
+        try
+        {
+            ClassOutlineResultDto outline = ClassOutlineReader.ReadClassOutline(
+                samplesRoot, "OutlineAdvanced.cs", 4, "OutlineAdvanced");
+
+            ok &= Assert(outline.TypeName == "OutlineAdvanced", "OutlineAdvanced 类型名");
+            ok &= Assert(outline.Members.Count >= 4,
+                $"OutlineAdvanced 至少 4 个成员 (实际 {outline.Members.Count})");
+            ok &= Assert(outline.Members.Any(m => m.Name == "CreateDefault" && m.IsStatic),
+                "CreateDefault 为 static 方法");
+            ok &= Assert(outline.Outputs.Any(o => o.Name == "CreateDefault" && o.Source == "返回值"),
+                "CreateDefault 返回 AppRunner 为输出端口");
+            ok &= Assert(outline.Members.Any(m => m.Name == "Count"),
+                "Count 属性出现在成员列表");
+            // ponytail: 索引器为 IndexerDeclarationSyntax，ClassOutlineReader 暂未提取，仅作语法样例保留在源文件
+        }
+        catch (Exception ex)
+        {
+            ok &= Assert(false, $"OutlineAdvanced ClassOutlineReader 失败: {ex.Message}");
         }
 
         return ok;

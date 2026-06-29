@@ -44,6 +44,8 @@ public sealed class ClassNodeDto
     public string Name { get; set; } = string.Empty;
     public string Namespace { get; set; } = string.Empty;
     public TypeKind Kind { get; set; }
+    /// <summary>是否为 abstract 类（仅 Kind=Class 时有意义）</summary>
+    public bool IsAbstract { get; set; }
     public string FilePath { get; set; } = string.Empty;
     public int Line { get; set; }
     public bool InCycle { get; set; }

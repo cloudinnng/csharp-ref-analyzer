@@ -931,6 +931,18 @@ body.tree-resizing {
   word-break: break-all;
 }
 
+/* 概要区循环标记需展示文字，不能沿用树/图上的 1.25rem 方形图标尺寸 */
+.summary-overview-meta .cycle-badge {
+  width: auto;
+  height: auto;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  word-break: normal;
+}
+
 .member-group {
   margin-bottom: 0.5rem;
 }
@@ -1808,7 +1820,7 @@ body.file-tree-resizing {
 
 .code-line-highlight .line-num,
 .code-line-highlight .line-text {
-  background: #388bfd22;
+  background: #235aa722;
 }
 
 .code-line-highlight .line-num {
@@ -1863,12 +1875,28 @@ button.code-type-nav {
   display: inline;
   text-align: inherit;
   vertical-align: baseline;
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-color: #755431;
+  text-underline-offset: 2px;
 }
 
 button.code-type-nav:hover {
-  background: #ffa65788;
+  background: none;
   text-decoration: underline;
+  text-decoration-color: #ffa657;
   text-underline-offset: 2px;
+}
+
+.code-line-highlight button.code-type-nav {
+  background: none;
+  text-decoration-color: #755431;
+}
+
+.code-line-highlight button.code-type-nav:hover {
+  text-decoration-color: #ffa657;
 }
 
 button.code-type-nav:focus-visible {

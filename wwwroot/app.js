@@ -964,7 +964,7 @@ function createFileTreeTypeElement(cls) {
 
   const iconWrap = document.createElement('span');
   iconWrap.className = 'icon-wrap';
-  iconWrap.innerHTML = typeIconSvg(cls.kind);
+  iconWrap.innerHTML = typeIconSvg(cls.kind, cls.isAbstract);
 
   const labelSpan = document.createElement('span');
   labelSpan.className = 'file-tree-label';
@@ -1189,7 +1189,7 @@ function cssEscape(value) {
   console.assert(sub.dirs.get('Sub').files[0].classes.length === 2, '[selfcheck] 同文件多类型');
 })();
 
-function typeIconSvg(kind) {
+function typeIconSvg(kind, isAbstract = false) {
   const cfg = {
     class: { stroke: '#79c0ff', fill: '#79c0ff22', shape: 'rect' },
     interface: { stroke: '#d2a8ff', fill: '#d2a8ff22', shape: 'circle' },
@@ -1200,7 +1200,10 @@ function typeIconSvg(kind) {
   const c = cfg[kind] || cfg.class;
 
   if (c.shape === 'rect') {
-    return `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.5"/></svg>`;
+    const label = isAbstract
+      ? `<text x="12" y="15" text-anchor="middle" fill="${c.stroke}" font-size="9" font-family="sans-serif">A</text>`
+      : '';
+    return `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.5"/>${label}</svg>`;
   }
   if (c.shape === 'circle') {
     return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.5"/><text x="12" y="16" text-anchor="middle" fill="${c.stroke}" font-size="10" font-family="sans-serif">I</text></svg>`;
@@ -1958,7 +1961,7 @@ function renderSummaryOverview(cls) {
 
   const iconWrap = document.createElement('span');
   iconWrap.className = 'icon-wrap';
-  iconWrap.innerHTML = typeIconSvg(cls.kind);
+  iconWrap.innerHTML = typeIconSvg(cls.kind, cls.isAbstract);
   header.appendChild(iconWrap);
 
   const nameBlock = document.createElement('div');
@@ -1984,7 +1987,7 @@ function renderSummaryOverview(cls) {
   meta.innerHTML = `
     <span class="summary-meta-item">${escapeHtml(cls.filePath)}</span>
     <span class="summary-meta-item">L${cls.line}</span>
-    ${cls.inCycle ? '<span class="summary-meta-item cycle-badge">↔ 循环依赖</span>' : ''}
+    ${cls.inCycle ? '<span class="summary-meta-item cycle-badge" title="参与循环依赖">↔ 循环依赖</span>' : ''}
   `;
   body.appendChild(meta);
 }
@@ -2648,7 +2651,7 @@ function createClassCard(cls, refs, classMap) {
 
   const iconWrap = document.createElement('span');
   iconWrap.className = 'icon-wrap';
-  iconWrap.innerHTML = typeIconSvg(cls.kind);
+  iconWrap.innerHTML = typeIconSvg(cls.kind, cls.isAbstract);
   header.appendChild(iconWrap);
 
   const nameEl = document.createElement('span');
@@ -3025,7 +3028,7 @@ function renderTreeNode(node, classMap, depth, parentClassId, rootCount = 1, cla
   const cls = classMap.get(node.classId);
   const iconWrap = document.createElement('span');
   iconWrap.className = 'icon-wrap';
-  iconWrap.innerHTML = typeIconSvg(cls ? cls.kind : 'class');
+  iconWrap.innerHTML = typeIconSvg(cls ? cls.kind : 'class', cls?.isAbstract);
   inner.appendChild(iconWrap);
 
   const layerLevel = classLayerMap?.get(node.classId);
