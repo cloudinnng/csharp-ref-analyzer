@@ -1,0 +1,68 @@
+# --- .NET 构建产物 ---
+bin/
+obj/
+out/
+build-out/
+publish/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+
+# NuGet
+*.nupkg
+**/packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# --- Node.js（scripts 依赖 playwright 等）---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- 运行时持久化（PathHistoryStore 写入 bin 下 data/，此处兜底）---
+**/data/path-history.json
+**/data/path-history.json.tmp
+
+# --- IDE / 编辑器 ---
+.vs/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+*.rsuser
+
+# Rider
+*.sln.iml
+
+# --- 操作系统 ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+*~
+
+# --- 测试 / 覆盖率 ---
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# --- 杂项 ---
+*.bak
+*.tmp
+*.swp
+*.swo

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CsharpRefAnalyzer</RootNamespace>
+    <AssemblyName>CsharpRefAnalyzer</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
+  </ItemGroup>
+
+  <!-- samples 仅用于 self-check 扫描，不参与 Web 项目编译 -->
+  <ItemGroup>
+    <Compile Remove="samples/**/*.cs" />
+  </ItemGroup>
+
+  <!-- 构建/清理前结束仍在运行的旧实例，避免 MSB3026/MSB3061 无法覆盖或删除 exe -->
+  <Target Name="StopRunningInstance" BeforeTargets="Clean;BeforeBuild">
+    <Exec
+      Command="taskkill /IM $(AssemblyName).exe /F /T 2&gt;nul"
+      IgnoreExitCode="true"
+      Condition="'$(OS)' == 'Windows_NT'" />
+    <Exec
+      Command="pkill -x $(AssemblyName) || true"
+      IgnoreExitCode="true"
+      Condition="'$(OS)' != 'Windows_NT'" />
+  </Target>
+
+</Project>

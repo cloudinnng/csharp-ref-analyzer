@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C# 引用分析工具",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-csharp-ref-analyzer",
+      "program": "${workspaceFolder}/bin/Debug/net10.0/CsharpRefAnalyzer.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://0.0.0.0:8780"
+      },
+      "serverReadyAction": {
+        "pattern": "(?:Now listening on|正在侦听)",
+        "uriFormat": "http://127.0.0.1:8780",
+        "action": "openExternally"
+      }
+    }
+  ]
+}

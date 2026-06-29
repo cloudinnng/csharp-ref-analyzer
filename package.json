@@ -1,0 +1,12 @@
+{
+  "name": "csharp-ref-analyzer",
+  "version": "1.0.0",
+  "description": "本地 Web 工具：递归扫描文件夹内 `.cs` 文件，分析**该文件夹内类型之间**的引用关系，按调用层级展示，点击类可展开向下调用树。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

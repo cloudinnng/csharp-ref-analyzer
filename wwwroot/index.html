@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>C# 引用分析工具</title>
+  <link rel="stylesheet" href="styles.css?v=source-inline-full" />
+</head>
+<body>
+  <div id="mobileDrawerBackdrop" class="mobile-drawer-backdrop" aria-hidden="true"></div>
+
+  <aside id="fileTreePanel" class="file-tree-panel">
+    <div id="fileTreeResizeHandle" class="file-tree-resize-handle" title="拖动调整宽度" aria-label="拖动调整目录树宽度"></div>
+    <div class="file-tree-header">
+      <h2>项目文件</h2>
+      <div class="file-tree-header-actions">
+        <button id="expandAllFileTreeBtn" type="button" class="file-tree-tool-btn">全部展开</button>
+        <button id="collapseAllFileTreeBtn" type="button" class="file-tree-tool-btn">全部折叠</button>
+        <button id="closeFileTreeDrawerBtn" type="button" class="drawer-close-btn mobile-only" title="关闭" aria-label="关闭项目文件">×</button>
+      </div>
+    </div>
+    <div id="fileTreeContainer" class="file-tree-container">
+      <p class="file-tree-placeholder">输入文件夹路径后点击「分析」</p>
+    </div>
+  </aside>
+
+  <header class="header page-top" id="pageHeader">
+    <div class="header-top-row">
+      <div class="header-title-group">
+        <button
+          id="toggleFileTreePanelBtn"
+          type="button"
+          class="file-tree-toggle-btn desktop-only"
+          title="收起项目文件侧栏"
+          aria-label="收起项目文件侧栏"
+          aria-expanded="true"
+        >«</button>
+        <h1 id="pageHeaderTitle">C# 代码库引用分析</h1>
+      </div>
+      <div class="header-actions">
+        <div class="layers-nav-buttons" aria-label="浏览历史导航">
+          <button type="button" data-layers-nav="back" class="layers-nav-btn" title="后退 (Alt+←)" disabled aria-label="后退">←</button>
+          <button type="button" data-layers-nav="forward" class="layers-nav-btn" title="前进 (Alt+→)" disabled aria-label="前进">→</button>
+        </div>
+        <div id="headerDefaultActions" class="header-mode-actions">
+          <button id="openHelpBtn" type="button" class="header-help-btn" title="查看使用说明与图例">帮助</button>
+        </div>
+        <div id="headerDetailActions" class="header-mode-actions hidden" aria-label="源码视图操作">
+          <button id="refDetailClose" type="button" class="header-help-btn" title="关闭 (Esc)" aria-label="关闭">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="mobile-toolbar" aria-label="侧栏入口">
+      <button id="openFileTreeDrawerBtn" type="button" class="mobile-drawer-btn">项目文件</button>
+      <button id="openTreeDrawerBtn" type="button" class="mobile-drawer-btn">类概要</button>
+    </div>
+  </header>
+
+  <section class="input-panel page-top">
+    <label for="folderPath">文件夹路径（本机绝对路径）</label>
+    <div class="input-row">
+      <input id="folderPath" type="text" placeholder="例如 C:\Projects\MyApp\Src" />
+      <button id="analyzeBtn" type="button">分析</button>
+    </div>
+    <div id="pathHistorySection" class="path-history hidden">
+      <div id="pathHistoryCards" class="path-history-cards"></div>
+    </div>
+  </section>
+
+  <section id="statsBar" class="stats-bar page-top hidden">
+    <div class="stats-metrics">
+      <span id="statFiles">文件: 0</span>
+      <span id="statClasses">类: 0</span>
+      <span id="statRefs">引用: 0</span>
+      <span id="statCycles">环: 0</span>
+    </div>
+  </section>
+
+  <div id="errorBox" class="error-box page-top hidden"></div>
+
+  <main class="main-layout">
+    <section class="layers-panel">
+      <div class="layers-panel-header">
+        <div class="layers-panel-title-row">
+          <h2 id="mainViewTitle">调用层级</h2>
+          <div class="view-toggle" role="tablist" aria-label="主视图切换">
+            <button type="button" class="view-toggle-btn active" data-view="layers" role="tab" aria-selected="true">分层视图</button>
+            <button type="button" class="view-toggle-btn" data-view="graph" role="tab" aria-selected="false">节点图</button>
+          </div>
+        </div>
+        <div class="layers-search-row">
+          <input
+            id="layersSearchInput"
+            type="search"
+            class="layers-search-input"
+            placeholder="搜索类型名、命名空间或文件路径…"
+            autocomplete="off"
+            spellcheck="false"
+            disabled
+          />
+          <button id="layersSearchClear" type="button" class="layers-search-clear hidden" title="清除搜索 (Esc)">×</button>
+        </div>
+        <p id="layersSearchStatus" class="layers-search-status hidden" aria-live="polite"></p>
+      </div>
+      <div id="layersContainer" class="layers-container">
+        <p class="placeholder">输入文件夹路径后点击「分析」</p>
+      </div>
+      <div id="graphContainer" class="graph-container hidden">
+        <div class="graph-toolbar">
+          <button id="graphRelayoutBtn" type="button" class="graph-tool-btn" title="重新按调用层级排列节点">重新布局</button>
+        </div>
+        <div id="graphCyRoot" class="graph-cy-root"></div>
+        <div id="graphCardLayer" class="graph-card-layer"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="treePanel" class="tree-panel">
+    <div id="treeResizeHandle" class="tree-resize-handle" title="拖动调整宽度" aria-label="拖动调整调用树宽度"></div>
+    <div class="tree-header">
+      <h2 id="treeTitle">类概要</h2>
+      <div class="tree-header-actions">
+        <button id="closeTreeDrawerBtn" type="button" class="drawer-close-btn mobile-only" title="关闭" aria-label="关闭类概要">×</button>
+      </div>
+    </div>
+    <div id="treeContainer" class="tree-container">
+      <p class="tree-placeholder">点击类卡片或目录树中的类型查看类概要</p>
+    </div>
+  </aside>
+
+  <div id="helpModal" class="info-modal hidden" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <div id="helpModalBackdrop" class="info-modal-backdrop"></div>
+    <div class="info-modal-panel info-modal-panel-wide">
+      <header class="info-modal-header">
+        <h3 id="helpModalTitle">使用说明</h3>
+        <button id="helpModalClose" type="button" class="info-modal-close" title="关闭 (Esc)">×</button>
+      </header>
+      <div class="help-modal-body">
+        <section class="help-section">
+          <h4>工具说明</h4>
+          <p>扫描文件夹内 .cs 文件，展示类之间的引用关系与调用层级。</p>
+        </section>
+        <section class="help-section">
+          <h4>分析范围</h4>
+          <p>仅展示该文件夹内已定义类型之间的引用；外部库/BCL 引用会被过滤。</p>
+        </section>
+        <section class="help-section">
+          <h4>调用层级</h4>
+          <p>层级按最长引用链深度排列：第 0 层为入口类，每向下一层表示被上一层直接或间接引用。</p>
+        </section>
+        <section class="help-section">
+          <h4>类概要</h4>
+          <p>点击类卡片或左侧目录树中的类型，右侧展示类概要：基本信息、成员大纲（含可见性图标）、输入/输出清单与调用树。</p>
+          <p>输入/输出按可访问性与读写启发式分类：可写字段/属性、构造参数为输入；只读字段、get-only 属性、方法返回值、event 为输出。</p>
+        </section>
+        <section class="help-section">
+          <h4>调用树</h4>
+          <p>类概要面板底部可查看该类型的调用树；其下自动列出直接引用方。</p>
+        </section>
+        <section class="help-section">
+          <h4>图例</h4>
+          <div class="legend legend-grid" aria-label="图例">
+            <span class="legend-item"><span class="icon-wrap" data-kind="class"></span> 类</span>
+            <span class="legend-item"><span class="icon-wrap" data-kind="interface"></span> 接口</span>
+            <span class="legend-item"><span class="icon-wrap" data-kind="struct"></span> 结构体</span>
+            <span class="legend-item"><span class="icon-wrap" data-kind="record"></span> Record</span>
+            <span class="legend-item"><span class="icon-wrap" data-kind="enum"></span> 枚举</span>
+            <span class="legend-item"><span class="member-icon-legend" data-member="field" data-access="public"></span> 字段</span>
+            <span class="legend-item"><span class="member-icon-legend" data-member="property" data-access="public"></span> 属性</span>
+            <span class="legend-item"><span class="member-icon-legend" data-member="method" data-access="private"></span> private</span>
+            <span class="legend-item"><span class="member-io-badge member-io-input">输入</span> 输入端口</span>
+            <span class="legend-item"><span class="member-io-badge member-io-output">输出</span> 输出端口</span>
+            <span class="legend-item"><span class="ref-icon" data-ref="calls"></span> 调用</span>
+            <span class="legend-item"><span class="ref-icon" data-ref="extends"></span> 继承</span>
+            <span class="legend-item"><span class="ref-icon" data-ref="implements"></span> 实现</span>
+            <span class="legend-item"><span class="ref-icon" data-ref="uses"></span> 使用</span>
+            <span class="legend-item"><span class="cycle-badge">↔</span> 循环</span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="refDetailModal" class="ref-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pageHeaderTitle">
+    <div id="refDetailBackdrop" class="ref-modal-backdrop"></div>
+    <div class="ref-modal-panel">
+      <div id="refDetailBody" class="ref-modal-body"></div>
+    </div>
+  </div>
+
+
+  <script src="vendor/cytoscape.min.js"></script>
+  <script src="app.js?v=outline-member-click"></script>
+  <script src="graph-view.js?v=1"></script>
+</body>
+</html>
