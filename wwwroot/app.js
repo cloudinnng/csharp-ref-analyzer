@@ -43,8 +43,6 @@ const FILE_TREE_WIDTH_STORAGE_KEY = 'csharp_ref_analyzer_file_tree_width';
 const FILE_TREE_COLLAPSED_STORAGE_KEY = 'csharp_ref_analyzer_file_tree_collapsed';
 /** 浏览器 localStorage：本标签页最近一次成功分析的路径（刷新后自动分析） */
 const LAST_ANALYSIS_STORAGE_KEY = 'csharp_ref_analyzer_last_analysis';
-/** 浏览器 localStorage：Ctrl+点击时用本机 Cursor CLI 打开并尝试置前 */
-const CURSOR_CLI_FOCUS_STORAGE_KEY = 'csharp_ref_analyzer_cursor_cli_focus';
 const FILE_TREE_WIDTH_MIN = 200;
 const FILE_TREE_WIDTH_MAX = 520;
 const FILE_TREE_WIDTH_DEFAULT = 260;
@@ -94,7 +92,6 @@ const pageHeader = document.getElementById('pageHeader');
 const pageHeaderTitle = document.getElementById('pageHeaderTitle');
 const headerDefaultActions = document.getElementById('headerDefaultActions');
 const headerDetailActions = document.getElementById('headerDetailActions');
-const cursorCliFocusToggle = document.getElementById('cursorCliFocusToggle');
 
 /** 主页顶栏默认标题 */
 const PAGE_HEADER_DEFAULT_TITLE = 'C# 代码库引用分析';
@@ -156,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initLayersNav();
   initOutlineMemberNav();
   initCursorEditorNav();
-  initCursorCliFocusToggle();
   initPathHistoryAutoRefresh();
   if (typeof initGraphView === 'function') {
     initGraphView();
@@ -758,16 +754,6 @@ function buildCursorEditorUrl(absoluteFilePath, line, column) {
  */
 
 /**
- * 在用户点击同步栈内唤起 cursor://（勿 setTimeout，否则会丢失手势链）
- * @param {string} url
- */
-function launchCursorEditorUrl(url) {
-  console.log('[app] Cursor 外链跳转', url);
-  // 直接导航比隐藏 <a> 更易保留 Windows 的用户手势上下文；仍受 OS 防抢焦点限制
-  window.location.href = url;
-}
-
-/**
  * 唤起本机 Cursor 并定位到指定文件行
  * @param {CursorEditorNavTarget} target
  * @returns {boolean}
@@ -781,85 +767,17 @@ function openInCursorEditor(target) {
   }
 
   const resolvedLine = Number.isFinite(target.line) && target.line >= 1 ? Math.floor(target.line) : 1;
-  if (isCursorCliFocusEnabled()) {
-    void openInCursorEditorViaCli({
-      relativeFilePath: target.relativeFilePath,
-      line: resolvedLine,
-      column: target.column
-    });
-    return true;
-  }
-
   const url = buildCursorEditorUrl(absolutePath, resolvedLine, target.column);
-  launchCursorEditorUrl(url);
+  console.log('[app] Cursor 外链跳转', url);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.rel = 'noopener noreferrer';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   return true;
-}
-
-/** @returns {boolean} 是否启用 CLI 置前模式 */
-function isCursorCliFocusEnabled() {
-  return cursorCliFocusToggle?.checked === true;
-}
-
-/** 绑定 Ctrl+点击 Cursor CLI 置前开关（localStorage 持久化） */
-function initCursorCliFocusToggle() {
-  if (!cursorCliFocusToggle) {
-    return;
-  }
-
-  const saved = localStorage.getItem(CURSOR_CLI_FOCUS_STORAGE_KEY);
-  cursorCliFocusToggle.checked = saved === '1';
-  console.log('[app] Cursor CLI 置前开关', cursorCliFocusToggle.checked ? '已启用' : '关闭');
-
-  cursorCliFocusToggle.addEventListener('change', () => {
-    const enabled = cursorCliFocusToggle.checked;
-    localStorage.setItem(CURSOR_CLI_FOCUS_STORAGE_KEY, enabled ? '1' : '0');
-    console.log('[app] Cursor CLI 置前开关', enabled ? '已启用' : '已关闭');
-  });
-}
-
-/**
- * 通过服务端调用本机 cursor CLI 打开并置前；失败时回退 cursor://
- * @param {CursorEditorNavTarget} target
- */
-async function openInCursorEditorViaCli(target) {
-  if (!currentData?.rootPath) {
-    showError('无法跳转 Cursor：请先完成项目分析');
-    return;
-  }
-
-  console.log('[app] Cursor CLI 跳转', target.relativeFilePath, `L${target.line}`);
-
-  try {
-    const resp = await fetch('/api/open-editor', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        folderPath: currentData.rootPath,
-        filePath: target.relativeFilePath,
-        line: target.line,
-        column: target.column ?? null
-      })
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || err.detail || `HTTP ${resp.status}`);
-    }
-
-    const result = await resp.json();
-    console.log('[app] Cursor CLI 跳转完成', result);
-    if (!result.focused) {
-      console.warn('[app] Cursor 已打开文件，但置前可能未成功（Windows 仍可能仅任务栏闪烁）');
-    }
-  } catch (err) {
-    console.warn('[app] Cursor CLI 跳转失败，回退 cursor://', err);
-    const absolutePath = buildAbsoluteFilePath(target.relativeFilePath);
-    if (absolutePath) {
-      launchCursorEditorUrl(buildCursorEditorUrl(absolutePath, target.line, target.column));
-    } else {
-      showError(err instanceof Error ? err.message : String(err));
-    }
-  }
 }
 
 /** @param {string|null|undefined} classId @returns {CursorEditorNavTarget|null} */

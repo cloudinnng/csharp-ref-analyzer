@@ -224,26 +224,6 @@ body.ref-modal-open {
   cursor: not-allowed;
 }
 
-.cursor-cli-focus-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-top: 0.55rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-  cursor: pointer;
-  user-select: none;
-}
-
-.cursor-cli-focus-option input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-
-.cursor-cli-focus-option:hover {
-  color: var(--text);
-}
-
 .path-history {
   margin-top: 0.75rem;
 }
