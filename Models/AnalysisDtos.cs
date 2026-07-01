@@ -218,3 +218,22 @@ public sealed class ClassOutlineResultDto
     public List<IoPortDto> Inputs { get; set; } = [];
     public List<IoPortDto> Outputs { get; set; } = [];
 }
+
+/// <summary>在本机 Cursor 中打开文件行（CLI 置前）</summary>
+public sealed class OpenEditorRequest
+{
+    public string FolderPath { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public int Line { get; set; }
+    public int? Column { get; set; }
+}
+
+/// <summary>Cursor CLI 打开结果</summary>
+public sealed class OpenEditorResultDto
+{
+    public bool Success { get; set; }
+    /// <summary>是否已成功尝试将 Cursor 窗口置前</summary>
+    public bool Focused { get; set; }
+    public string Method { get; set; } = "cli";
+    public string? CursorExecutable { get; set; }
+}

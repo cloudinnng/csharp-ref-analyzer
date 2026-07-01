@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>C# 引用分析工具</title>
-  <link rel="stylesheet" href="styles.css?v=source-inline-full" />
+  <link rel="stylesheet" href="styles.css?v=cursor-cli-focus" />
 </head>
 <body>
   <div id="mobileDrawerBackdrop" class="mobile-drawer-backdrop" aria-hidden="true"></div>
@@ -62,6 +62,10 @@
       <input id="folderPath" type="text" placeholder="例如 C:\Projects\MyApp\Src" />
       <button id="analyzeBtn" type="button">分析</button>
     </div>
+    <label class="cursor-cli-focus-option" title="通过本机 Cursor CLI 打开文件并尝试置前；失败时回退 cursor:// 链接">
+      <input id="cursorCliFocusToggle" type="checkbox" />
+      <span>Ctrl+点击用 CLI 打开 Cursor 并置前</span>
+    </label>
     <div id="pathHistorySection" class="path-history hidden">
       <div id="pathHistoryCards" class="path-history-cards"></div>
     </div>
@@ -158,6 +162,18 @@
           <p>类概要面板底部可查看该类型的调用树；其下自动列出直接引用方。</p>
         </section>
         <section class="help-section">
+          <h4>在 Cursor 中打开</h4>
+          <p>按住 <kbd>Ctrl</kbd>（macOS 为 <kbd>⌘</kbd>）再点击可跳转的位置，会通过 <code>cursor://</code> 协议在本机 Cursor 中打开对应文件行；普通点击仍在网页内查看源码。</p>
+          <ul class="help-list">
+            <li>类卡片、图节点、目录树类型 → 类型定义行</li>
+            <li>成员大纲、IO 端口 → 成员所在行</li>
+            <li>调用树条目 → 类型定义行；<kbd>Ctrl</kbd>+双击或点击「引」→ 引用代码行</li>
+            <li>源码弹窗内类型名、代码行、查找标尺标记 → 对应文件行</li>
+          </ul>
+          <p class="help-note">链接格式示例：<code>cursor://file/D:/项目/文件.cs:100</code>（末尾 <code>:行号</code> 决定定位）。分析路径须为本机绝对路径，且与 Cursor 工作区一致。</p>
+          <p class="help-note">Windows 上默认 <code>cursor://</code> 可能仅任务栏橙色闪烁。勾选页面上方「<strong>Ctrl+点击用 CLI 打开 Cursor 并置前</strong>」后，改由本机服务端执行 <code>cursor -r -g</code> 并尝试激活窗口（需 Cursor 已安装；失败时自动回退 URL）。</p>
+        </section>
+        <section class="help-section">
           <h4>图例</h4>
           <div class="legend legend-grid" aria-label="图例">
             <span class="legend-item"><span class="icon-wrap" data-kind="class"></span> 类</span>
@@ -190,7 +206,8 @@
 
 
   <script src="vendor/cytoscape.min.js"></script>
-  <script src="app.js?v=outline-member-click"></script>
+  <!-- 加载 app.js，并加上 ?v=cursor-ctrl-nav 作为版本号参数用于刷新浏览器缓存，只要参数改变就能强制浏览器拉取最新的 js，无特殊含义 -->
+  <script src="app.js?v=cursor-cli-focus"></script>
   <script src="graph-view.js?v=1"></script>
 </body>
 </html>

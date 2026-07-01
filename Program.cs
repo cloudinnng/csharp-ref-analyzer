@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using CsharpRefAnalyzer.Analysis;
 using CsharpRefAnalyzer.Config;
+using CsharpRefAnalyzer.Editor;
 using CsharpRefAnalyzer.Models;
 
 namespace CsharpRefAnalyzer;
@@ -230,6 +231,50 @@ public static class Program
             catch (Exception ex)
             {
                 Console.WriteLine($"[API] 读取类型大纲失败: {ex}");
+                return Results.Problem(detail: ex.Message, statusCode: 500);
+            }
+        });
+
+        app.MapPost("/api/open-editor", (OpenEditorRequest request) =>
+        {
+            Console.WriteLine(
+                $"[API] POST /api/open-editor file={request.FilePath} line={request.Line} col={request.Column}");
+
+            if (string.IsNullOrWhiteSpace(request.FolderPath))
+            {
+                return Results.BadRequest(new { error = "folderPath 不能为空" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.FilePath))
+            {
+                return Results.BadRequest(new { error = "filePath 不能为空" });
+            }
+
+            if (request.Line < 1)
+            {
+                return Results.BadRequest(new { error = "line 必须 >= 1" });
+            }
+
+            try
+            {
+                OpenEditorResultDto result = CursorEditorLauncher.Open(request);
+                return Results.Json(result, JsonOptions);
+            }
+            catch (DirectoryNotFoundException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (FileNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] Cursor CLI 打开失败: {ex}");
                 return Results.Problem(detail: ex.Message, statusCode: 500);
             }
         });

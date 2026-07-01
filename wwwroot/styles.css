@@ -224,6 +224,26 @@ body.ref-modal-open {
   cursor: not-allowed;
 }
 
+.cursor-cli-focus-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cursor-cli-focus-option input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.cursor-cli-focus-option:hover {
+  color: var(--text);
+}
+
 .path-history {
   margin-top: 0.75rem;
 }
@@ -1499,15 +1519,19 @@ body.file-tree-resizing {
   cursor: wait;
 }
 
-/* 图例 / 帮助等居中信息弹窗 */
+/* 图例 / 帮助等居中信息弹窗（须高于 sticky 顶栏 z-index: 110） */
 .info-modal {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 120;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: max(1rem, var(--page-header-height, 3.5rem)) 1rem 1rem;
+}
+
+body.info-modal-open {
+  overflow: hidden;
 }
 
 .info-modal-backdrop {
@@ -1519,7 +1543,10 @@ body.file-tree-resizing {
 .info-modal-panel {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
   width: min(360px, 100%);
+  max-height: min(85vh, calc(100dvh - var(--page-header-height, 3.5rem) - 2rem));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1527,7 +1554,7 @@ body.file-tree-resizing {
 }
 
 .info-modal-panel-wide {
-  width: min(520px, 100%);
+  width: min(640px, 100%);
 }
 
 .info-modal-header {
@@ -1535,6 +1562,7 @@ body.file-tree-resizing {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex-shrink: 0;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
 }
@@ -1564,7 +1592,21 @@ body.file-tree-resizing {
 }
 
 .help-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.85rem 1.25rem 1rem;
+}
+
+.info-modal-panel-wide .legend-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 520px) {
+  .info-modal-panel-wide .legend-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .help-section + .help-section {
@@ -1585,6 +1627,47 @@ body.file-tree-resizing {
   font-size: 0.8rem;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.help-section p + p,
+.help-section p + .help-list,
+.help-section .help-list + p {
+  margin-top: 0.45rem;
+}
+
+.help-section .help-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.help-section .help-list li + li {
+  margin-top: 0.2rem;
+}
+
+.help-section kbd,
+.help-section code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.76rem;
+}
+
+.help-section kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2, #1a1d24);
+  color: var(--text);
+}
+
+.help-section code {
+  color: var(--text);
+}
+
+.help-section .help-note {
+  font-size: 0.76rem;
+  opacity: 0.92;
 }
 
 /* 引用代码详情模态框 */

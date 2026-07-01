@@ -43,6 +43,8 @@ const FILE_TREE_WIDTH_STORAGE_KEY = 'csharp_ref_analyzer_file_tree_width';
 const FILE_TREE_COLLAPSED_STORAGE_KEY = 'csharp_ref_analyzer_file_tree_collapsed';
 /** 浏览器 localStorage：本标签页最近一次成功分析的路径（刷新后自动分析） */
 const LAST_ANALYSIS_STORAGE_KEY = 'csharp_ref_analyzer_last_analysis';
+/** 浏览器 localStorage：Ctrl+点击时用本机 Cursor CLI 打开并尝试置前 */
+const CURSOR_CLI_FOCUS_STORAGE_KEY = 'csharp_ref_analyzer_cursor_cli_focus';
 const FILE_TREE_WIDTH_MIN = 200;
 const FILE_TREE_WIDTH_MAX = 520;
 const FILE_TREE_WIDTH_DEFAULT = 260;
@@ -92,6 +94,7 @@ const pageHeader = document.getElementById('pageHeader');
 const pageHeaderTitle = document.getElementById('pageHeaderTitle');
 const headerDefaultActions = document.getElementById('headerDefaultActions');
 const headerDetailActions = document.getElementById('headerDetailActions');
+const cursorCliFocusToggle = document.getElementById('cursorCliFocusToggle');
 
 /** 主页顶栏默认标题 */
 const PAGE_HEADER_DEFAULT_TITLE = 'C# 代码库引用分析';
@@ -152,6 +155,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initLayersSearch();
   initLayersNav();
   initOutlineMemberNav();
+  initCursorEditorNav();
+  initCursorCliFocusToggle();
   initPathHistoryAutoRefresh();
   if (typeof initGraphView === 'function') {
     initGraphView();
@@ -703,6 +708,428 @@ function closeMobileDrawers() {
 function normalizeFilePath(filePath) {
   return (filePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
 }
+
+// #region Cursor 外链跳转（Ctrl / ⌘ + 点击）
+
+/**
+ * 是否为「在 Cursor 中打开」修饰键点击
+ * Windows/Linux: Ctrl；macOS: ⌘
+ * @param {MouseEvent} e
+ */
+function isModifierOpenInEditorClick(e) {
+  return !!(e.ctrlKey || e.metaKey);
+}
+
+/**
+ * 分析根目录 + 相对路径 → 绝对路径（统一为正斜杠，供 cursor:// 使用）
+ * @param {string} relativeFilePath
+ * @returns {string|null}
+ */
+function buildAbsoluteFilePath(relativeFilePath) {
+  const rootPath = (currentData?.rootPath || '').trim().replace(/[\\/]+$/, '');
+  const relative = normalizeFilePath(relativeFilePath);
+  if (!rootPath || !relative) {
+    return null;
+  }
+
+  return `${rootPath.replace(/\\/g, '/')}/${relative}`;
+}
+
+/**
+ * 构建 Cursor 编辑器 deep link
+ * @param {string} absoluteFilePath
+ * @param {number} line
+ * @param {number|undefined} column
+ */
+function buildCursorEditorUrl(absoluteFilePath, line, column) {
+  const normalizedPath = absoluteFilePath.replace(/\\/g, '/');
+  let url = `cursor://file/${normalizedPath}`;
+  if (Number.isFinite(line) && line >= 1) {
+    url += `:${Math.floor(line)}`;
+    if (Number.isFinite(column) && column >= 1) {
+      url += `:${Math.floor(column)}`;
+    }
+  }
+  return url;
+}
+
+/**
+ * @typedef {{ relativeFilePath: string, line: number, column?: number }} CursorEditorNavTarget
+ */
+
+/**
+ * 在用户点击同步栈内唤起 cursor://（勿 setTimeout，否则会丢失手势链）
+ * @param {string} url
+ */
+function launchCursorEditorUrl(url) {
+  console.log('[app] Cursor 外链跳转', url);
+  // 直接导航比隐藏 <a> 更易保留 Windows 的用户手势上下文；仍受 OS 防抢焦点限制
+  window.location.href = url;
+}
+
+/**
+ * 唤起本机 Cursor 并定位到指定文件行
+ * @param {CursorEditorNavTarget} target
+ * @returns {boolean}
+ */
+function openInCursorEditor(target) {
+  const absolutePath = buildAbsoluteFilePath(target.relativeFilePath);
+  if (!absolutePath) {
+    console.warn('[app] Cursor 跳转：缺少 rootPath 或 filePath', target);
+    showError('无法跳转 Cursor：请先完成项目分析');
+    return false;
+  }
+
+  const resolvedLine = Number.isFinite(target.line) && target.line >= 1 ? Math.floor(target.line) : 1;
+  if (isCursorCliFocusEnabled()) {
+    void openInCursorEditorViaCli({
+      relativeFilePath: target.relativeFilePath,
+      line: resolvedLine,
+      column: target.column
+    });
+    return true;
+  }
+
+  const url = buildCursorEditorUrl(absolutePath, resolvedLine, target.column);
+  launchCursorEditorUrl(url);
+  return true;
+}
+
+/** @returns {boolean} 是否启用 CLI 置前模式 */
+function isCursorCliFocusEnabled() {
+  return cursorCliFocusToggle?.checked === true;
+}
+
+/** 绑定 Ctrl+点击 Cursor CLI 置前开关（localStorage 持久化） */
+function initCursorCliFocusToggle() {
+  if (!cursorCliFocusToggle) {
+    return;
+  }
+
+  const saved = localStorage.getItem(CURSOR_CLI_FOCUS_STORAGE_KEY);
+  cursorCliFocusToggle.checked = saved === '1';
+  console.log('[app] Cursor CLI 置前开关', cursorCliFocusToggle.checked ? '已启用' : '关闭');
+
+  cursorCliFocusToggle.addEventListener('change', () => {
+    const enabled = cursorCliFocusToggle.checked;
+    localStorage.setItem(CURSOR_CLI_FOCUS_STORAGE_KEY, enabled ? '1' : '0');
+    console.log('[app] Cursor CLI 置前开关', enabled ? '已启用' : '已关闭');
+  });
+}
+
+/**
+ * 通过服务端调用本机 cursor CLI 打开并置前；失败时回退 cursor://
+ * @param {CursorEditorNavTarget} target
+ */
+async function openInCursorEditorViaCli(target) {
+  if (!currentData?.rootPath) {
+    showError('无法跳转 Cursor：请先完成项目分析');
+    return;
+  }
+
+  console.log('[app] Cursor CLI 跳转', target.relativeFilePath, `L${target.line}`);
+
+  try {
+    const resp = await fetch('/api/open-editor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        folderPath: currentData.rootPath,
+        filePath: target.relativeFilePath,
+        line: target.line,
+        column: target.column ?? null
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || err.detail || `HTTP ${resp.status}`);
+    }
+
+    const result = await resp.json();
+    console.log('[app] Cursor CLI 跳转完成', result);
+    if (!result.focused) {
+      console.warn('[app] Cursor 已打开文件，但置前可能未成功（Windows 仍可能仅任务栏闪烁）');
+    }
+  } catch (err) {
+    console.warn('[app] Cursor CLI 跳转失败，回退 cursor://', err);
+    const absolutePath = buildAbsoluteFilePath(target.relativeFilePath);
+    if (absolutePath) {
+      launchCursorEditorUrl(buildCursorEditorUrl(absolutePath, target.line, target.column));
+    } else {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  }
+}
+
+/** @param {string|null|undefined} classId @returns {CursorEditorNavTarget|null} */
+function resolveClassDefinitionNav(classId) {
+  const cls = findClassById(classId ?? '');
+  if (!cls?.filePath) {
+    return null;
+  }
+
+  return { relativeFilePath: cls.filePath, line: cls.line };
+}
+
+/** @param {HTMLElement} el @returns {CursorEditorNavTarget|null} */
+function resolveOutlineMemberNav(el) {
+  const line = Number(el.dataset.memberLine);
+  const filePath = currentOutlineContext?.cls?.filePath;
+  if (!filePath || !Number.isFinite(line) || line < 1) {
+    console.warn('[app] Cursor 跳转：大纲成员缺少 filePath/line', el.dataset.memberTitle);
+    return null;
+  }
+
+  return { relativeFilePath: filePath, line };
+}
+
+/** @param {HTMLElement} treeNode @returns {'incoming'|'outgoing'} */
+function resolveTreeSectionMode(treeNode) {
+  const referrers = document.getElementById('summaryReferrers');
+  if (referrers?.contains(treeNode)) {
+    return 'incoming';
+  }
+  return 'outgoing';
+}
+
+/**
+ * 调用树条目「引用代码」对应的文件行（与 openTreeNodeReferenceDetail 一致）
+ * @param {HTMLElement} treeNode
+ * @returns {CursorEditorNavTarget|null}
+ */
+function resolveTreeNodeReferenceNav(treeNode) {
+  const classId = treeNode.dataset.classId;
+  const depth = Number(treeNode.dataset.depth) || 0;
+  const sectionMode = resolveTreeSectionMode(treeNode);
+  const cls = findClassById(classId ?? '');
+  if (!cls || !currentData) {
+    return null;
+  }
+
+  const parentNode = treeNode.parentElement?.closest('.tree-node');
+  const parentClassId = parentNode?.dataset.classId ?? null;
+
+  if (sectionMode === 'incoming' && depth === 0) {
+    const childNode = treeNode.querySelector(':scope > .tree-children > .tree-node');
+    const targetId = childNode?.dataset.classId;
+    if (targetId) {
+      const refs = currentData.references.filter(
+        (r) => r.fromId === classId && r.toId === targetId
+      );
+      const nav = resolveReferenceSiteNav(cls.filePath, refs);
+      if (nav) {
+        return nav;
+      }
+    }
+  }
+
+  if (depth === 0) {
+    return resolveClassDefinitionNav(classId);
+  }
+
+  if (parentClassId) {
+    const fromCls = findClassById(parentClassId);
+    const refs = currentData.references.filter(
+      (r) => r.fromId === parentClassId && r.toId === classId
+    );
+    if (fromCls) {
+      const nav = resolveReferenceSiteNav(fromCls.filePath, refs);
+      if (nav) {
+        return nav;
+      }
+    }
+  }
+
+  return resolveClassDefinitionNav(classId);
+}
+
+/**
+ * 引用边 → 首个引用站点行号
+ * @param {string} fromFilePath
+ * @param {Object[]} refs
+ * @returns {CursorEditorNavTarget|null}
+ */
+function resolveReferenceSiteNav(fromFilePath, refs) {
+  if (!fromFilePath) {
+    return null;
+  }
+
+  if (!refs?.length) {
+    return { relativeFilePath: fromFilePath, line: 1 };
+  }
+
+  const ref = refs[0];
+  const sites = ref.sites?.length ? ref.sites : [{ line: ref.line }];
+  const line = sites[0]?.line ?? ref.line;
+  if (!Number.isFinite(line) || line < 1) {
+    return { relativeFilePath: fromFilePath, line: 1 };
+  }
+
+  return { relativeFilePath: fromFilePath, line };
+}
+
+/** @param {HTMLElement} row @returns {CursorEditorNavTarget|null} */
+function resolveFileTreeFileNav(row) {
+  const wrap = row.closest('.file-tree-file');
+  const filePath = wrap?.dataset.filePath;
+  if (!filePath || !currentData?.classes) {
+    return null;
+  }
+
+  const classes = currentData.classes
+    .filter((c) => normalizeFilePath(c.filePath) === normalizeFilePath(filePath))
+    .sort((a, b) => a.line - b.line);
+  if (!classes.length) {
+    return { relativeFilePath: filePath, line: 1 };
+  }
+
+  return { relativeFilePath: classes[0].filePath, line: classes[0].line };
+}
+
+/** @param {HTMLElement} tr @returns {CursorEditorNavTarget|null} */
+function resolveRefDetailLineNav(tr) {
+  const block = tr.closest('.ref-detail-block');
+  const filePath = block?.dataset.sourceFilePath;
+  const line = Number(tr.dataset.line);
+  if (!filePath || !Number.isFinite(line) || line < 1) {
+    return null;
+  }
+
+  return { relativeFilePath: filePath, line };
+}
+
+/** @param {HTMLElement} mark @returns {CursorEditorNavTarget|null} */
+function resolveOverviewMarkNav(mark) {
+  const shell = mark.closest('.code-snippet-shell');
+  const pre = shell?.querySelector('pre');
+  const block = pre?.closest('.ref-detail-block');
+  const filePath = block?.dataset.sourceFilePath ?? currentInlineSourceView?.filePath ?? null;
+  const line = Number(mark.dataset.line);
+  if (!filePath || !Number.isFinite(line) || line < 1) {
+    return null;
+  }
+
+  return { relativeFilePath: filePath, line };
+}
+
+/**
+ * 从点击目标解析 Cursor 跳转信息；无法解析时返回 null（走原有应用内导航）
+ * @param {EventTarget|null} target
+ * @param {MouseEvent} event
+ * @returns {CursorEditorNavTarget|null}
+ */
+function resolveCursorNavTarget(target, event) {
+  if (!(target instanceof Element) || isEditableTarget(target)) {
+    return null;
+  }
+
+  const isDblClick = event.type === 'dblclick';
+
+  const typeNav = target.closest('.code-type-nav');
+  if (typeNav?.dataset.classId) {
+    return resolveClassDefinitionNav(typeNav.dataset.classId);
+  }
+
+  const memberNav = target.closest('.member-row-nav, .io-port-nav');
+  if (memberNav) {
+    return resolveOutlineMemberNav(memberNav);
+  }
+
+  const overviewMark = target.closest('.code-snippet-overview-mark');
+  if (overviewMark) {
+    return resolveOverviewMarkNav(overviewMark);
+  }
+
+  const codeLine = target.closest('.ref-detail-block tr[data-line]');
+  if (codeLine instanceof HTMLElement) {
+    return resolveRefDetailLineNav(codeLine);
+  }
+
+  const treeActionBtn = target.closest('.tree-action-btn');
+  if (treeActionBtn) {
+    const treeNode = treeActionBtn.closest('.tree-node');
+    if (treeNode) {
+      const label = treeActionBtn.textContent?.trim();
+      if (label === '引') {
+        return resolveTreeNodeReferenceNav(treeNode);
+      }
+      if (label === '源码' || label === '根') {
+        return resolveClassDefinitionNav(treeNode.dataset.classId);
+      }
+    }
+  }
+
+  const treeInner = target.closest('.tree-node-inner');
+  if (treeInner) {
+    const treeNode = treeInner.closest('.tree-node');
+    if (treeNode) {
+      if (isDblClick) {
+        return resolveTreeNodeReferenceNav(treeNode);
+      }
+      return resolveClassDefinitionNav(treeNode.dataset.classId);
+    }
+  }
+
+  const cardAction = target.closest('.class-card-action-btn');
+  if (cardAction) {
+    const card = cardAction.closest('.class-card, .graph-node-card');
+    if (card?.dataset.classId) {
+      return resolveClassDefinitionNav(card.dataset.classId);
+    }
+  }
+
+  const classCard = target.closest('.class-card, .graph-node-card');
+  if (classCard?.dataset.classId) {
+    return resolveClassDefinitionNav(classCard.dataset.classId);
+  }
+
+  const fileTreeType = target.closest('.file-tree-type');
+  if (fileTreeType?.dataset.classId) {
+    return resolveClassDefinitionNav(fileTreeType.dataset.classId);
+  }
+
+  const fileTreeFileRow = target.closest('.file-tree-file > .file-tree-row');
+  if (fileTreeFileRow instanceof HTMLElement) {
+    return resolveFileTreeFileNav(fileTreeFileRow);
+  }
+
+  return null;
+}
+
+/** 捕获阶段拦截 Ctrl/⌘+点击，改为 Cursor 外链跳转 */
+function initCursorEditorNav() {
+  if (initCursorEditorNav.initialized) {
+    return;
+  }
+  initCursorEditorNav.initialized = true;
+
+  /**
+   * @param {MouseEvent} e
+   */
+  const onModifierNav = (e) => {
+    if (!isModifierOpenInEditorClick(e)) {
+      return;
+    }
+
+    const nav = resolveCursorNavTarget(e.target, e);
+    if (!nav) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    openInCursorEditor(nav);
+  };
+
+  document.addEventListener('click', onModifierNav, true);
+  document.addEventListener('dblclick', onModifierNav, true);
+  console.log('[app] 已启用 Ctrl/⌘+点击 → Cursor 外链跳转');
+}
+initCursorEditorNav.initialized = false;
+
+// #endregion
 
 /**
  * 从类型列表构建目录树数据
@@ -1328,10 +1755,13 @@ function initHelpModal() {
 
 function openHelpModal() {
   helpModal?.classList.remove('hidden');
+  document.body.classList.add('info-modal-open');
+  console.log('[app] 打开帮助弹窗');
 }
 
 function closeHelpModal() {
   helpModal?.classList.add('hidden');
+  document.body.classList.remove('info-modal-open');
 }
 
 function renderLegendIcons() {
@@ -4018,6 +4448,7 @@ function renderClassSourceBlock(source, options = {}) {
   const focusLine = options.focusLine;
   const block = document.createElement('div');
   block.className = 'ref-detail-block';
+  block.dataset.sourceFilePath = normalizeFilePath(source.filePath);
 
   const meta = document.createElement('div');
   meta.className = 'ref-detail-meta';
@@ -4331,6 +4762,7 @@ function snippetGroupSiteCount(item) {
 function renderSnippetBlock(item) {
   const block = document.createElement('div');
   block.className = 'ref-detail-block';
+  block.dataset.sourceFilePath = normalizeFilePath(item.snippet.filePath);
 
   const meta = document.createElement('div');
   meta.className = 'ref-detail-meta';
@@ -5026,6 +5458,21 @@ function buildLineRefHighlightMap(item) {
   renderCodeSnippetOverviewMarks(pre, [1, 50]);
   const marks = shell.querySelectorAll('.code-snippet-overview-mark');
   console.assert(marks.length === 2 && shell.querySelector('.code-snippet-overview-ruler.is-visible'), '[selfcheck] overview 标尺标记');
+})();
+
+// ponytail: Ctrl+点击 Cursor 外链 URL 构建
+(function selfCheckCursorEditorNav() {
+  const saved = currentData;
+  currentData = { rootPath: 'D:\\Projects\\Demo' };
+  console.assert(
+    buildAbsoluteFilePath('Src/App.cs') === 'D:/Projects/Demo/Src/App.cs',
+    '[selfcheck] Cursor 绝对路径拼接'
+  );
+  console.assert(
+    buildCursorEditorUrl('D:/Projects/Demo/Src/App.cs', 42, 5) === 'cursor://file/D:/Projects/Demo/Src/App.cs:42:5',
+    '[selfcheck] Cursor deep link 格式'
+  );
+  currentData = saved;
 })();
 
 function showError(msg) {
