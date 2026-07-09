@@ -5,6 +5,9 @@
 
 /** @typedef {'layers'|'graph'} MainViewMode */
 
+/** 浏览器 localStorage：主视图类型（分层 / 节点图） */
+const MAIN_VIEW_MODE_STORAGE_KEY = 'csharp_ref_analyzer_main_view_mode';
+
 /** @type {MainViewMode} */
 let mainViewMode = 'layers';
 
@@ -34,6 +37,7 @@ const GRAPH_REF_EDGE_COLORS = {
   uses: '#8b9cb3'
 };
 
+const layersContainerEl = document.getElementById('layersContainer');
 const graphContainer = document.getElementById('graphContainer');
 const graphCyRoot = document.getElementById('graphCyRoot');
 const graphCardLayer = document.getElementById('graphCardLayer');
@@ -42,6 +46,29 @@ const mainViewTitle = document.getElementById('mainViewTitle');
 const layersPanel = document.querySelector('.layers-panel');
 const layersSearchRow = document.querySelector('.layers-search-row');
 const layersSearchStatusEl = document.getElementById('layersSearchStatus');
+
+/** 将主视图类型写入 localStorage */
+function saveMainViewModeToStorage(mode) {
+  try {
+    localStorage.setItem(MAIN_VIEW_MODE_STORAGE_KEY, mode);
+    console.log('[graph-view] 已保存主视图类型到 localStorage', mode);
+  } catch (err) {
+    console.warn('[graph-view] 保存主视图类型失败', err);
+  }
+}
+
+/** 读取 localStorage 中保存的主视图类型 */
+function readSavedMainViewMode() {
+  try {
+    const value = localStorage.getItem(MAIN_VIEW_MODE_STORAGE_KEY);
+    if (value === 'layers' || value === 'graph') {
+      return /** @type {MainViewMode} */ (value);
+    }
+  } catch (err) {
+    console.warn('[graph-view] 读取主视图类型失败', err);
+  }
+  return null;
+}
 
 /** 标记图视图需重建（分析完成后由 app.js 调用） */
 function markGraphViewDirty() {
@@ -52,9 +79,29 @@ function markGraphViewDirty() {
   }
 }
 
+/** 当前主视图模式（供 app.js 在分析流程中查询） */
+function getMainViewMode() {
+  return mainViewMode;
+}
+
+/** 节点图区域占位文案（分析中 / 无数据） */
+function setGraphViewPlaceholder(message) {
+  if (!graphCardLayer) {
+    return;
+  }
+  graphCardLayer.innerHTML = `<p class="placeholder graph-placeholder">${message}</p>`;
+  console.log('[graph-view] 设置节点图占位', message);
+}
+
 /** 初始化视图切换与图工具栏 */
 function initGraphView() {
   console.log('[graph-view] 初始化节点图视图');
+
+  const savedMode = readSavedMainViewMode();
+  if (savedMode) {
+    console.log('[graph-view] 恢复主视图类型', savedMode);
+    setMainViewMode(savedMode);
+  }
 
   document.querySelectorAll('.view-toggle-btn[data-view]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -88,6 +135,7 @@ function initGraphView() {
 /** @param {MainViewMode} mode */
 function setMainViewMode(mode) {
   mainViewMode = mode;
+  saveMainViewModeToStorage(mode);
   console.log('[graph-view] 切换主视图:', mode);
 
   document.querySelectorAll('.view-toggle-btn[data-view]').forEach((btn) => {
@@ -97,7 +145,7 @@ function setMainViewMode(mode) {
   });
 
   const isGraph = mode === 'graph';
-  layersContainer.classList.toggle('hidden', isGraph);
+  layersContainerEl?.classList.toggle('hidden', isGraph);
   graphContainer.classList.toggle('hidden', !isGraph);
   layersPanel?.classList.toggle('layers-panel-graph-mode', isGraph);
   layersSearchRow?.classList.toggle('hidden', isGraph);
@@ -1220,7 +1268,7 @@ function buildGraphView() {
   destroyGraphView();
 
   if (!currentData || !currentData.classes.length) {
-    graphCardLayer.innerHTML = '<p class="placeholder graph-placeholder">输入文件夹路径后点击「分析」</p>';
+    setGraphViewPlaceholder('输入文件夹路径后点击「分析」');
     graphDirty = false;
     return;
   }

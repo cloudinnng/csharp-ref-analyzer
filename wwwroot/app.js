@@ -131,6 +131,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   initFileTreePanelCollapse();
   initTreePanelResize();
   initMobileDrawers();
+  // 须在自动分析前初始化并恢复主视图，否则刷新后长时间停留在默认分层视图
+  if (typeof initGraphView === 'function') {
+    initGraphView();
+  }
   await initPathHistory();
   await tryRestoreLastAnalysis();
   analyzeBtn.addEventListener('click', onAnalyze);
@@ -154,9 +158,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initOutlineMemberNav();
   initCursorEditorNav();
   initPathHistoryAutoRefresh();
-  if (typeof initGraphView === 'function') {
-    initGraphView();
-  }
 });
 
 /** 切换回标签页时从服务端刷新路径历史（多标签 / 127.0.0.1 与局域网 IP 互开） */
@@ -1716,7 +1717,12 @@ async function onAnalyze() {
   analyzeBtn.textContent = '分析中…';
   document.body.classList.add('loading');
   statsBar.classList.add('hidden');
-  layersContainer.innerHTML = '<p class="placeholder">正在分析，请稍候…</p>';
+  if (typeof getMainViewMode === 'function' && getMainViewMode() === 'graph' && typeof setGraphViewPlaceholder === 'function') {
+    setGraphViewPlaceholder('正在分析，请稍候…');
+    console.log('[app] 节点图模式下显示分析中占位');
+  } else {
+    layersContainer.innerHTML = '<p class="placeholder">正在分析，请稍候…</p>';
+  }
   setLayersSearchEnabled(false);
   resetLayersNavHistory();
   clearTreePanel();

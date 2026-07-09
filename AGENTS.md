@@ -1,15 +1,9 @@
-开发的时候需要同时支持:
+## 持久化存储
 
-http://[局域网IP]:8780/
+按数据归属选层，**不要**再用 Cookie 存业务数据（旧 Cookie 仅做一次性迁移）。
 
-http://127.0.0.1:8780/
-
-## F5 调试与编译
-
-F5 调试会锁定 `bin/Debug` DLL，导致 `dotnet build` 失败或运行旧代码。注意：
-
-1. 改 C# 需先停止调试（Shift+F5），再 build，再重启调试（F5 或 Ctrl+Shift+F5），别指望热更新。
-2. 只改 `wwwroot` 刷新浏览器即可，无需重启后端。
-3. build 报错除自身代码外，优先排查是否有调试进程未关。
-
-F5 启动 C# 项目后会在 **Cursor 内置浏览器** 打开 `http://127.0.0.1:8780/`（`.vscode/launch.json` 中 `editor-browser` + `serverReadyAction`）。若仍跳外部浏览器，请在 Cursor **Settings → Tools & MCP** 开启 **Show Localhost Links in Browser**。
+| 场景 | 存放位置 | 示例 |
+|------|----------|------|
+| 跨浏览器/用户共享 | 服务端 JSON | 路径历史 `PathHistoryStore` |
+| 仅本机 UI 偏好 | 浏览器 `localStorage` | 面板宽度、折叠状态 |
+| 刷新后自动恢复当前会话 | 浏览器 `localStorage` | 最近一次成功分析的路径 |
